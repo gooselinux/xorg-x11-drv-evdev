@@ -1,0 +1,26 @@
+From 4a077809a3e0fa1c3dc1764f5b3a3b9684a19a6b Mon Sep 17 00:00:00 2001
+From: Peter Hutterer <peter.hutterer@who-t.net>
+Date: Fri, 8 Jan 2010 13:23:44 +1000
+Subject: [PATCH] Don't reopen to infinity if reopen attempts is 0
+
+Signed-off-by: Peter Hutterer <peter.hutterer@who-t.net>
+---
+ src/evdev.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/evdev.c b/src/evdev.c
+index 33e02ab..d9eb7ef 100644
+--- a/src/evdev.c
++++ b/src/evdev.c
+@@ -378,7 +378,7 @@ EvdevReopenTimer(OsTimerPtr timer, CARD32 time, pointer arg)
+ 
+     pEvdev->reopen_left--;
+ 
+-    if (!pEvdev->reopen_left)
++    if (pEvdev->reopen_left <= 0)
+     {
+         xf86Msg(X_ERROR, "%s: Failed to reopen device after %d attempts.\n",
+                 pInfo->name, pEvdev->reopen_attempts);
+-- 
+1.6.6
+

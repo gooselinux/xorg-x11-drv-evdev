@@ -1,0 +1,86 @@
+From 6b5c0401e2b8fe1637f937739e822a33206ef1ac Mon Sep 17 00:00:00 2001
+From: Oliver McFadden <oliver.mcfadden@nokia.com>
+Date: Tue, 20 Apr 2010 05:37:39 +0300
+Subject: [PATCH] evdev: leaked_storage: free memory allocated from the xf86Option code.
+
+Signed-off-by: Oliver McFadden <oliver.mcfadden@nokia.com>
+Reviewed-by: Peter Hutterer <peter.hutterer@who-t.net>
+---
+ src/draglock.c |    2 ++
+ src/emuWheel.c |    2 +-
+ src/evdev.c    |   12 ++++++++----
+ 3 files changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/src/draglock.c b/src/draglock.c
+index 6157cae..a7ad974 100644
+--- a/src/draglock.c
++++ b/src/draglock.c
+@@ -145,6 +145,8 @@ EvdevDragLockPreInit(InputInfoPtr pInfo)
+         if (next_num != NULL && *next_num == '\0')
+             next_num = NULL;
+     }
++
++    xfree(option_string);
+ }
+ 
+ /* Updates DragLock button state and fires button event messges */
+diff --git a/src/emuWheel.c b/src/emuWheel.c
+index 3f0dfd4..afafff7 100644
+--- a/src/emuWheel.c
++++ b/src/emuWheel.c
+@@ -232,8 +232,8 @@ EvdevWheelEmuHandleButtonMap(InputInfoPtr pInfo, WheelAxisPtr pAxis, char* axis_
+ 	} else {
+ 	    xf86Msg(X_WARNING, "%s: Invalid %s value:\"%s\"\n",
+ 		    pInfo->name, axis_name, option_string);
+-
+ 	}
++	xfree(option_string);
+ 
+ 	/* Clean up and log what happened */
+ 	if (msg) {
+diff --git a/src/evdev.c b/src/evdev.c
+index d133870..e4ca84e 100644
+--- a/src/evdev.c
++++ b/src/evdev.c
+@@ -1370,15 +1371,16 @@ EvdevInitButtonMapping(InputInfoPtr pInfo)
+     /* Check for user-defined button mapping */
+     if ((mapping = xf86CheckStrOption(pInfo->options, "ButtonMapping", NULL)))
+     {
+-        char    *s  = " ";
++        char    *map, *s = " ";
+         int     btn = 0;
+ 
+         xf86Msg(X_CONFIG, "%s: ButtonMapping '%s'\n", pInfo->name, mapping);
++        map = mapping;
+         while (s && *s != '\0' && nbuttons < EVDEV_MAXBUTTONS)
+         {
+-            btn = strtol(mapping, &s, 10);
++            btn = strtol(map, &s, 10);
+ 
+-            if (s == mapping || btn < 0 || btn > EVDEV_MAXBUTTONS)
++            if (s == map || btn < 0 || btn > EVDEV_MAXBUTTONS)
+             {
+                 xf86Msg(X_ERROR,
+                         "%s: ... Invalid button mapping. Using defaults\n",
+@@ -1388,8 +1390,9 @@ EvdevInitButtonMapping(InputInfoPtr pInfo)
+             }
+ 
+             pEvdev->btnmap[nbuttons++] = btn;
+-            mapping = s;
++            map = s;
+         }
++        xfree(mapping);
+     }
+ 
+     for (i = nbuttons; i < ArrayLength(pEvdev->btnmap); i++)
+@@ -2071,6 +2074,7 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
+         num_calibration = sscanf(str, "%d %d %d %d",
+                                  &calibration[0], &calibration[1],
+                                  &calibration[2], &calibration[3]);
++        xfree(str);
+         if (num_calibration == 4)
+             EvdevSetCalibration(pInfo, num_calibration, calibration);
+         else
+-- 
+1.6.6.1
+

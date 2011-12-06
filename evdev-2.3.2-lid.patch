@@ -1,0 +1,109 @@
+diff -up xf86-input-evdev-2.3.2/src/evdev.c.jx xf86-input-evdev-2.3.2/src/evdev.c
+--- xf86-input-evdev-2.3.2/src/evdev.c.jx	2010-07-27 16:18:23.000000000 -0400
++++ xf86-input-evdev-2.3.2/src/evdev.c	2010-07-30 15:42:39.000000000 -0400
+@@ -729,9 +729,43 @@ EvdevProcessSyncEvent(InputInfoPtr pInfo
+     pEvdev->rel = 0;
+ }
+ 
++extern void RRGetInfo(ScreenPtr, int);
++static int lid_event;
++
++static void
++EvdevProcessSwitchEvent(InputInfoPtr pInfo, struct input_event *ev)
++{
++    int i;
++
++    if (ev->code == SW_LID)
++	lid_event = 1;
++}
++
++/* yes, the block/unblock is necessary */
++static void
++EvdevBlockHandler(void *block, void *timeout, void *readmask)
++{
++    if (lid_event) {
++	int i, wasset;
++	wasset = xf86BlockSIGIO();
++	for (i = 0; i < screenInfo.numScreens; i++)
++	    RRGetInfo(screenInfo.screens[i], 1);
++	lid_event = 0;
++	xf86UnblockSIGIO(wasset);
++    }
++}
++
++static void
++EvdevWakeupHandler(void *block, int res, void *readmask)
++{
++}
++
+ /**
+  * Process the events from the device; nothing is actually posted to the server
+  * until an EV_SYN event is received.
++ *
++ * ... except for switch events, because they're magic things that X apps
++ * never see.
+  */
+ static void
+ EvdevProcessEvent(InputInfoPtr pInfo, struct input_event *ev)
+@@ -746,6 +780,9 @@ EvdevProcessEvent(InputInfoPtr pInfo, st
+         case EV_KEY:
+             EvdevProcessKeyEvent(pInfo, ev);
+             break;
++	case EV_SW:
++	    EvdevProcessSwitchEvent(pInfo, ev);
++	    break;
+         case EV_SYN:
+             EvdevProcessSyncEvent(pInfo, ev);
+             break;
+@@ -1823,6 +1860,7 @@ static int
+ EvdevProbe(InputInfoPtr pInfo)
+ {
+     int i, has_rel_axes, has_abs_axes, has_keys, num_buttons, has_scroll;
++    int has_switch;
+     int kernel24 = 0;
+     int ignore_abs = 0, ignore_rel = 0;
+     EvdevPtr pEvdev = pInfo->private;
+@@ -1865,8 +1903,30 @@ EvdevProbe(InputInfoPtr pInfo)
+     has_abs_axes = FALSE;
+     has_keys = FALSE;
+     has_scroll = FALSE;
++    has_switch = FALSE;
+     num_buttons = 0;
+ 
++    if (TestBit(EV_SW, pEvdev->bitmask)) do {
++	unsigned long sw_bitmask[NLONGS(SW_CNT)];
++	int len;
++	
++	len = ioctl(pInfo->fd, EVIOCGBIT(EV_SW, sizeof(sw_bitmask)),
++		    sw_bitmask);
++
++	if (len < 0) {
++	    xf86Msg(X_ERROR, "%s: ioctl EVIOCGBIT failed: %s\n",
++		    pInfo->name, strerror(errno));
++	    break;
++	}
++	
++	if (!TestBit(SW_LID, sw_bitmask))
++	    break;
++
++	pInfo->flags |= XI86_CONFIGURED;
++        xf86Msg(X_INFO, "%s: Adding for lid switch\n", pInfo->name);
++	has_switch = TRUE;
++    } while (0);
++
+     /* count all buttons */
+     for (i = BTN_MISC; i < BTN_JOYSTICK; i++)
+     {
+@@ -2017,6 +2077,12 @@ EvdevProbe(InputInfoPtr pInfo)
+         return 1;
+     }
+ 
++    if (has_switch)
++	/* ! is intentional, return codes are the other way around */
++	return !RegisterBlockAndWakeupHandlers(EvdevBlockHandler,
++					       EvdevWakeupHandler,
++					       NULL);
++
+     return 0;
+ }
+ 

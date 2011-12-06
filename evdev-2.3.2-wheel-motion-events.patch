@@ -1,0 +1,39 @@
+From aaf65e7bfacd9501c4475a579d92c3bc60409893 Mon Sep 17 00:00:00 2001
+From: Paulo Ricardo Zanoni <pzanoni@mandriva.com>
+Date: Wed, 14 Apr 2010 17:12:27 -0300
+Subject: [PATCH] Don't set pEvdev->rel for mouse wheel events
+
+This way we won't get empty MotionNotify events when the mouse wheel is
+used.
+
+Signed-off-by: Paulo Ricardo Zanoni <pzanoni@mandriva.com>
+Reviewed-by: Peter Hutterer <peter.hutterer@who-t.net>
+Signed-off-by: Peter Hutterer <peter.hutterer@who-t.net>
+---
+ src/evdev.c |    3 +--
+ 1 files changed, 1 insertions(+), 2 deletions(-)
+
+diff --git a/src/evdev.c b/src/evdev.c
+index 06b1bb6..d133870 100644
+--- a/src/evdev.c
++++ b/src/evdev.c
+@@ -494,8 +494,6 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
+     /* Get the signed value, earlier kernels had this as unsigned */
+     value = ev->value;
+ 
+-    pEvdev->rel = 1;
+-
+     switch (ev->code) {
+         case REL_WHEEL:
+             if (value > 0)
+@@ -522,6 +520,7 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
+             if (EvdevWheelEmuFilterMotion(pInfo, ev))
+                 return;
+ 
++            pEvdev->rel = 1;
+             pEvdev->delta[ev->code] += value;
+             break;
+     }
+-- 
+1.6.5.2
+
